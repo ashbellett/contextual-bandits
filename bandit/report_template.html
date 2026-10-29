@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaussian-Process Contextual Bandits</title>
+<style id="cb-report-styles">
+.cb-report {
+  --surface: #ffffff;
+  --figure-surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --muted-ink: #52514e;
+  --rule: #e4e3df;
+  --accent: #2a78d6;
+  color-scheme: light;
+  background: var(--surface);
+  color: var(--ink);
+  font: 16px/1.6 Inter, "Helvetica Neue", Arial, sans-serif;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cb-report {
+    --surface: #121211;
+    --ink: #f0efec;
+    --muted-ink: #c3c2b7;
+    --rule: #34332f;
+    --accent: #3987e5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] .cb-report {
+  --surface: #121211;
+  --ink: #f0efec;
+  --muted-ink: #c3c2b7;
+  --rule: #34332f;
+  --accent: #3987e5;
+  color-scheme: dark;
+}
+.cb-report h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 0.5rem; }
+.cb-report h2 { font-size: 1.35rem; margin: 3rem 0 0.5rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+.cb-report .lede { color: var(--muted-ink); font-size: 1.1rem; }
+.cb-report ol, .cb-report ul { padding-left: 1.25rem; }
+.cb-report code { font-size: 0.9em; }
+.cb-report .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+.cb-report .stat { border: 1px solid var(--rule); border-radius: 8px; padding: 0.75rem 1rem; }
+.cb-report .stat .value { display: block; font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cb-report .stat .label { display: block; color: var(--muted-ink); font-size: 0.85rem; line-height: 1.35; }
+.cb-report .settings { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 1rem; font-size: 0.9rem; color: var(--muted-ink); }
+.cb-report .settings dt { font-weight: 600; }
+.cb-report .settings dd { margin: 0; }
+.cb-report figure { margin: 2rem 0; }
+.cb-report figure svg { display: block; height: auto; background: var(--figure-surface); border-radius: 8px; }
+.cb-report figcaption { color: var(--muted-ink); font-size: 0.9rem; margin-top: 0.5rem; }
+</style>
+<style id="standalone-page">
+body { margin: 0; background: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body { background: #121211; } }
+:root[data-theme="dark"] body { background: #121211; }
+</style>
+</head>
+<body>
+<article class="cb-report">
+<h1>Contextual bandits with Gaussian-process rewards</h1>
+<p class="lede">An agent repeatedly sees a context, picks one of several arms and observes a noisy reward.
+It never sees the reward curves; it learns them with one Gaussian process per arm and chooses arms by
+Thompson sampling. The second experiment changes the curves twice without warning.</p>
+
+<h2>Method</h2>
+<ol>
+  <li>A context x is drawn uniformly from [0, 1].</li>
+  <li>For each arm a, the agent draws one sample of the arm's mean reward μ<sub>a</sub>(x) from its
+  Gaussian-process posterior, and pulls the arm with the largest sample.</li>
+  <li>It observes r = μ<sub>a</sub>(x) + ε with ε ~ N(0, σ²) and adds (x, r) to that arm's data.</li>
+  <li>Regret for the round is max<sub>a′</sub> μ<sub>a′</sub>(x) − μ<sub>a</sub>(x): the expected
+  reward lost by not pulling the best arm for this context.</li>
+</ol>
+<p>Each Gaussian process uses a Matérn-5/2 kernel whose signal variance, length scale and noise variance
+are learned by maximising the marginal likelihood. Under change points, a sliding window keeps only the
+observations from recent rounds, so arms that have not been pulled lately become uncertain again and get
+re-explored.</p>
+$body
+</article>
+</body>
+</html>

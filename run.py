@@ -1,169 +1,58 @@
-# Standard libraries
+"""Run the static and dynamic experiments and write the HTML report."""
+
+import argparse
+import time
+from dataclasses import replace
 from pathlib import Path
-from time import time
 
-# PyPI packages
-from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
-import numpy as np
+from bandit.report import ReportSection, render_report
+from bandit.simulation import ExperimentConfig, run_experiment
 
-# Local package
-from bandit.examples import reward_function
-from bandit.experiment import (
-    create_folders,
-    generate_arms,
-    generate_domain,
-    run
+STATIC = ExperimentConfig(name="static", horizon=1000)
+DYNAMIC = ExperimentConfig(name="dynamic", horizon=3000, change_points=(1000, 2000), window=200)
+
+EXPERIMENTS = (
+    (
+        STATIC,
+        "Stationary environment",
+        "The reward curves never change and every observation is kept. Regret should grow quickly while "
+        "the agent explores and then flatten out (sub-linear growth) once it has learned which arm is best "
+        "where.",
+    ),
+    (
+        DYNAMIC,
+        "Piecewise-stationary environment",
+        f"Every arm's reward curve is replaced at rounds {' and '.join(map(str, DYNAMIC.change_points))}. "
+        f"The agent only conditions on the last {DYNAMIC.window} rounds, so it forgets the old curves and "
+        "recovers after each change. Forgetting also costs a little regret between changes, so cumulative "
+        "regret keeps growing slowly instead of flattening.",
+    ),
 )
 
-# Global settings
-np.random.seed(1)
-plt.rcParams.update({'figure.figsize': (8, 6)})
-plt.rcParams.update({'font.size': 16})
 
-# Global variables
-DATA_PATH = Path('./figures')
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--replications", type=int, help="override the number of replications")
+    parser.add_argument("--workers", type=int, help="parallel processes (default: all CPUs)")
+    parser.add_argument("--output", type=Path, default=Path("docs/report.html"))
+    return parser.parse_args()
 
-# Static environment
 
-# Simulation parameters
-arm_count = 3  # arm space, 3 actions
-dimension = 1  # 1-dimensional context values
-bounds = (0, 1)  # context space bounded between 0 and 1
-reward_variance = 0.1  # variance of reward random variables
-window_length = 0  # number of observations to train GP model
-horizon = 1000  # number of time steps to run simulation
-replications = 30  # number of repeated experiment runs
-change_points = []  # locations of change-point events
+def main() -> None:
+    arguments = parse_arguments()
+    sections = []
+    for config, title, description in EXPERIMENTS:
+        if arguments.replications:
+            config = replace(config, replications=arguments.replications)
+        start = time.perf_counter()
+        result = run_experiment(config, workers=arguments.workers)
+        print(f"{config.name}: {config.replications} replications in {time.perf_counter() - start:.0f} s")
+        sections.append(ReportSection(title, description, result))
 
-# Run simulation
-create_folders(DATA_PATH)
-domain = generate_domain(bounds)
-arms_initial = generate_arms(
-    true_reward_function=reward_function,
-    arm_count=arm_count,
-    dimension=dimension,
-    bounds=bounds,
-    reward_variance=reward_variance,
-    window_length=window_length
-)
-start_time = time()
-arms, cumulative_regret, estimated_best_actions, true_best_actions = run(
-    arms=arms_initial,
-    domain=domain,
-    dimension=dimension,
-    bounds=bounds,
-    horizon=horizon,
-    replications=replications,
-    change_points=change_points
-)
-end_time = time()
-print(f"Simulation took {round(end_time-start_time, 3)} s.")
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(render_report(sections), encoding="utf-8")
+    print(f"Report written to {arguments.output}")
 
-# Regret
-plt.figure()
-plt.plot(cumulative_regret, label='Cumulative regret, Thompson sampling')
-for index, change_point in enumerate(change_points):
-    if index == 0:
-        plt.plot(change_point, cumulative_regret[change_point], 'o', c='k', label='Change-point in reward function')
-    else:
-        plt.plot(change_point, cumulative_regret[change_point], 'o', c='k')
-plt.vlines(
-    x=change_points,
-    ymin=[0]*len(change_points),
-    ymax=[cumulative_regret[change_point] for change_point in change_points],
-    colors='k',
-    linestyles='dashed'
-)
-plt.xlabel('Time step')
-plt.ylabel('Cumulative regret')
-plt.legend()
-plt.tight_layout()
-plt.savefig(DATA_PATH / 'regret' / 'static.pdf')
 
-# Optimal arm identification
-plt.figure()
-plt.plot(domain, estimated_best_actions, label='Estimated best action')
-plt.plot(domain, true_best_actions, label='True best action')
-plt.xlabel('Context')
-plt.ylabel('Action')
-plt.gca().yaxis.set_major_locator(MaxNLocator(integer=True))
-plt.legend()
-plt.tight_layout()
-plt.savefig(DATA_PATH / 'actions' / 'static.pdf')
-
-# Reward estimation
-for arm in arms:
-    arm.reward.plot(file_name=DATA_PATH / 'reward' / f'static_{arm.index}.pdf')
-
-# Dynamic environment (multiple changepoints)
-
-# Simulation parameters
-arm_count = 3  # arm space, 3 actions
-dimension = 1  # 1-dimensional context values
-bounds = (0, 1)  # context space bounded between 0 and 1
-reward_variance = 0.1  # variance of reward random variables
-window_length = 200  # number of observations to train GP model
-horizon = 3000  # number of time steps to run simulation
-replications = 30  # number of repeated experiment runs
-change_points = [999, 1999]  # locations of change-point events
-
-# Run simulation
-create_folders(DATA_PATH)
-domain = generate_domain(bounds)
-arms_initial = generate_arms(
-    true_reward_function=reward_function,
-    arm_count=arm_count,
-    dimension=dimension,
-    bounds=bounds,
-    reward_variance=reward_variance,
-    window_length=window_length
-)
-start_time = time()
-arms, cumulative_regret, estimated_best_actions, true_best_actions = run(
-    arms=arms_initial,
-    domain=domain,
-    dimension=dimension,
-    bounds=bounds,
-    horizon=horizon,
-    replications=replications,
-    change_points=change_points
-)
-end_time = time()
-print(f"Simulation took {round(end_time-start_time, 3)} s.")
-
-# Regret
-plt.figure()
-plt.plot(cumulative_regret, label='Cumulative regret, Thompson sampling')
-for index, change_point in enumerate(change_points):
-    if index == 0:
-        plt.plot(change_point, cumulative_regret[change_point], 'o', c='k', label='Change-point in reward function')
-    else:
-        plt.plot(change_point, cumulative_regret[change_point], 'o', c='k')
-plt.vlines(
-    x=change_points,
-    ymin=[0]*len(change_points),
-    ymax=[cumulative_regret[change_point] for change_point in change_points],
-    colors='k',
-    linestyles='dashed'
-)
-plt.xlabel('Time step')
-plt.ylabel('Cumulative regret')
-plt.legend()
-plt.tight_layout()
-plt.savefig(DATA_PATH / 'regret' / 'dynamic.pdf')
-
-# Optimal arm identification
-plt.figure()
-plt.plot(domain, estimated_best_actions, label='Estimated best action')
-plt.plot(domain, true_best_actions, label='True best action')
-plt.xlabel('Context')
-plt.ylabel('Action')
-plt.gca().yaxis.set_major_locator(MaxNLocator(integer=True))
-plt.legend()
-plt.tight_layout()
-plt.savefig(DATA_PATH / 'actions' / 'dynamic.pdf')
-
-# Reward estimation
-for arm in arms:
-    arm.reward.plot(file_name=DATA_PATH / 'reward' / f'dynamic_{arm.index}.pdf')
+if __name__ == "__main__":
+    main()
