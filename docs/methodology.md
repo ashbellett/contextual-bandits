@@ -216,6 +216,20 @@ The report shows, for each experiment:
   at the end (the final window when one is used), the posterior mean and a 95% credible band for
   $\mu_a(x)$.
 
+Results from `python run.py` (seed 1, 30 replications):
+
+| | Stationary | Piecewise-stationary |
+|---|---|---|
+| Cumulative regret $R_T$ (mean ± 95% CI) | 13.7 ± 2.2 | 105.5 ± 2.7 |
+| Uniform random policy, expected $R_T$ | 283 | 933 |
+| Mean regret per round, last 10% of rounds | 0.002 | 0.019 |
+| Contexts where the learned best arm is optimal | 97% | 96% |
+
+In the stationary run most regret comes in the first 100 rounds, and the curve then flattens, as
+sub-linear regret should. In the piecewise-stationary run regret jumps after each change point and the
+agent recovers within a few hundred rounds. Its per-round regret between changes stays about ten times the
+stationary level, which is the price of the 200-round window.
+
 Because Thompson sampling pulls an arm mainly where it looks best, each GP is accurate where its arm is
 competitive and stays uncertain elsewhere. That is the intended behaviour, not a modelling failure.
 
